@@ -51,20 +51,13 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         averageFileSizeTextView.setEnabled(false);
         averageFileSizeHeaderTextView.setEnabled(false);
 
-
         if (!isExternalStorageAvailable() || isExternalStorageReadOnly()) {
             button_start.setEnabled(false);
             button_stop.setEnabled(false);
-        } else if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
-            if (ActivityCompat.shouldShowRequestPermissionRationale(MainActivity.this, Manifest.permission.READ_EXTERNAL_STORAGE)) {
-                ActivityCompat.requestPermissions(MainActivity.this, new String[]{Manifest.permission.READ_EXTERNAL_STORAGE}, MY_PERMISSION);
-            } else {
-                ActivityCompat.requestPermissions(MainActivity.this, new String[]{Manifest.permission.READ_EXTERNAL_STORAGE}, MY_PERMISSION);
-            }
+        }else {
             button_start.setOnClickListener(this);
             button_stop.setOnClickListener(this);
         }
-
     }
 
     @Override
@@ -97,9 +90,12 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                     if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED) {
                         Toast.makeText(MainActivity.this, "Permission granted", Toast.LENGTH_SHORT).show();
+                            button_stop.setEnabled(true);
+                            fileOperations = new FileOperationsAsyncTask(MainActivity.this, recyclerView, recyclerView2, averageFileSizeHeaderTextView, averageFileSizeTextView, button_stop, button_start, menu);
+                            fileOperations.execute();
                     }
                 } else {
-                    Toast.makeText(MainActivity.this, "No Permission Required", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(MainActivity.this, "Permission denied by User", Toast.LENGTH_SHORT).show();
                     finish();
                 }
                 return;
@@ -128,9 +124,13 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
         switch (v.getId()) {
             case R.id.fileoperations_start:
-                button_stop.setEnabled(true);
-                fileOperations= new FileOperationsAsyncTask(MainActivity.this, recyclerView, recyclerView2, averageFileSizeHeaderTextView, averageFileSizeTextView, button_stop, button_start, menu);
-                fileOperations.execute();
+                if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED) {
+                    button_stop.setEnabled(true);
+                    fileOperations = new FileOperationsAsyncTask(MainActivity.this, recyclerView, recyclerView2, averageFileSizeHeaderTextView, averageFileSizeTextView, button_stop, button_start, menu);
+                    fileOperations.execute();
+                }else {
+                    ActivityCompat.requestPermissions(MainActivity.this, new String[]{Manifest.permission.READ_EXTERNAL_STORAGE}, MY_PERMISSION);
+                }
                 break;
 
             case R.id.fileoperations_stop:
