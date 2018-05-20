@@ -14,6 +14,7 @@ import android.widget.TextView;
 
 import com.example.externalstoragefileoperations.MainActivity;
 import com.example.externalstoragefileoperations.adapters.CustomAdapter;
+import com.example.externalstoragefileoperations.model.FileModel;
 import com.example.externalstoragefileoperations.model.FileOperationModel;
 
 import java.io.File;
@@ -27,7 +28,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeMap;
 
 public class FileOperationsAsyncTask extends AsyncTask<Integer, Integer, Void> {
 
@@ -46,12 +46,13 @@ public class FileOperationsAsyncTask extends AsyncTask<Integer, Integer, Void> {
     private NotificationManager mNotificationManager;
 
     CustomAdapter customAdapter, customAdapter1;
-    long size = 0;
+    long size;
     String name;
     String extension = null;
     int index;
 
-    TreeMap<Long, String> sortedMap = new TreeMap<Long, String>(Collections.reverseOrder());
+    LinkedList<FileModel> linkedList;
+
     Map<String, Integer> map_words = new HashMap<>();
 
     public FileOperationsAsyncTask(Context context, RecyclerView recyclerView, RecyclerView recyclerView2, TextView averageFileSizeHeaderTextView, TextView averageFileSizeTextView, Button button_stop, Button button_start, Menu menu) {
@@ -84,9 +85,7 @@ public class FileOperationsAsyncTask extends AsyncTask<Integer, Integer, Void> {
         progressDialog.setProgressStyle(ProgressDialog.STYLE_HORIZONTAL);
         progressDialog.setCancelable(true);
         progressDialog.show();
-
         createNotification("Scanning external storage", "Scanning external storage is in progress");
-
         LinearLayoutManager linearLayoutManager = new LinearLayoutManager(context, LinearLayoutManager.VERTICAL, false);
         recyclerView.setLayoutManager(linearLayoutManager);
         LinearLayoutManager linearLayoutManager1 = new LinearLayoutManager(context, LinearLayoutManager.VERTICAL, false);
@@ -106,17 +105,12 @@ public class FileOperationsAsyncTask extends AsyncTask<Integer, Integer, Void> {
         }
         customAdapter = new CustomAdapter((MainActivity) context, fileOperationModel.getFileNames(), fileOperationModel.getFileSize());
         customAdapter1 = new CustomAdapter((MainActivity) context, fileOperationModel.getFrequentFileExtension(), fileOperationModel.getFrequentFileExtensionCount());
-
         recyclerView.setAdapter(customAdapter);
         recyclerView2.setAdapter(customAdapter1);
-
         averageFileSizeHeaderTextView.setEnabled(true);
         averageFileSizeTextView.setEnabled(true);
-
         averageFileSizeTextView.setText(fileOperationModel.getAverage().toString());
-
         createNotification("Scanning external storage", "Scanning external storage is complete!");
-
         menu.getItem(0).setEnabled(true);
         button_stop.setEnabled(false);
         mCallback.onTaskComplete(fileOperationModel);
@@ -128,14 +122,14 @@ public class FileOperationsAsyncTask extends AsyncTask<Integer, Integer, Void> {
     }
 
     private void listFiles(File[] files) {
+
         for (File f : files) {
             if (f.isFile()) {
                 name = f.getName();
                 size = f.length() / 1024;
                 index = name.lastIndexOf(".");
                 extension = name.substring(index + 1);
-                sortedMap.put(size, name);
-
+                linkedList.add(new FileModel(name, size));
                 if (index > 0) {
                     extension = name.substring(index + 1);
                 }
@@ -147,24 +141,37 @@ public class FileOperationsAsyncTask extends AsyncTask<Integer, Integer, Void> {
     }
 
     public FileOperationModel startScanningExternalStorage() {
+
         fileOperationModel = new FileOperationModel();
+        linkedList = new LinkedList<FileModel>();
         File dir = Environment.getExternalStorageDirectory();
         listFiles(dir.listFiles());
-        List<Long> k = new ArrayList<>(sortedMap.keySet());
+        Collections.sort(linkedList, new SortLinkedViasize());
+
+        List<Long> fileSize = new ArrayList<Long>();
+        List<String> fileName = new ArrayList<String>();
+        if (linkedList.size() > 10) {
+            for (int i = 0; i < 10; i++) {
+                fileSize.add(linkedList.get(i).getFileSize());
+                fileName.add(linkedList.get(i).getFileNames());
+            }
+        } else {
+            for (int j = 0; j < linkedList.size(); j++) {
+                fileSize.add(linkedList.get(j).getFileSize());
+                fileName.add(linkedList.get(j).getFileNames());
+            }
+        }
+        fileOperationModel.setFileNames(fileName);
+        fileOperationModel.setFileSize(fileSize);
+
         double sum = 0;
 
-        Iterator<Long> iter1 = k.iterator();
-        while (iter1.hasNext()) {
-            sum += iter1.next();
+        Iterator<FileModel> itr = linkedList.iterator();
+        while (itr.hasNext()) {
+            sum += itr.next().getFileSize();
         }
-        double average = sum / k.size();
 
-        List<String> v = new ArrayList<>(sortedMap.values());
-
-        if (sortedMap.size() > 10) {
-            k = k.subList(0, 10);
-            v = v.subList(0, 10);
-        }
+        double average = sum / linkedList.size();
 
         for (String words : fileOperationModel.getFrequentFileExtension()) {
             if (map_words.containsKey(words)) {
@@ -196,17 +203,18 @@ public class FileOperationsAsyncTask extends AsyncTask<Integer, Integer, Void> {
 
         fileOperationModel.setFrequentFileExtension((ArrayList<String>) kw);
         fileOperationModel.setFrequentFileExtensionCount((ArrayList<Long>) vw);
-
-        fileOperationModel.setFileSize(k);
-        fileOperationModel.setFileNames(v);
-
         fileOperationModel.setAverage(average);
-
         return fileOperationModel;
     }
 
-    private void createNotification(String contentTitle, String contentText) {
+    class SortLinkedViasize implements Comparator<FileModel> {
+        @Override
+        public int compare(FileModel o1, FileModel o2) {
+            return (o2.getFileSize()).compareTo(o1.getFileSize());
+        }
+    }
 
+    private void createNotification(String contentTitle, String contentText) {
         Notification.Builder builder = new Notification.Builder(context)
                 .setSmallIcon(android.R.drawable.sym_def_app_icon)
                 .setAutoCancel(true)
@@ -214,7 +222,6 @@ public class FileOperationsAsyncTask extends AsyncTask<Integer, Integer, Void> {
                 .setContentText(contentText);
 
         mNotification = builder.getNotification();
-
         mNotificationManager.notify(NOTIFICATION_ID, mNotification);
     }
 

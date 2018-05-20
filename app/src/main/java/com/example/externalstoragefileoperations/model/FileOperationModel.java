@@ -56,15 +56,8 @@ public class FileOperationModel {
         this.fileSize = fileSize;
     }
 
-    public void setFileSize(ArrayList<Long> fileSize) {
-        this.fileSize = fileSize;
-    }
-
     public ArrayList<String> getFileExtensionName() {
         return fileExtensionName;
     }
 
-    public void setFileExtensionName(ArrayList<String> fileExtensionName) {
-        this.fileExtensionName = fileExtensionName;
-    }
 }
