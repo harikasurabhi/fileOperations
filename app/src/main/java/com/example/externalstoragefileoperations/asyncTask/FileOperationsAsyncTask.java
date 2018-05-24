@@ -1,19 +1,9 @@
 package com.example.externalstoragefileoperations.asyncTask;
 
-import android.app.Notification;
-import android.app.NotificationManager;
-import android.app.ProgressDialog;
+import android.content.AsyncTaskLoader;
 import android.content.Context;
-import android.os.AsyncTask;
 import android.os.Environment;
-import android.support.v7.widget.LinearLayoutManager;
-import android.support.v7.widget.RecyclerView;
-import android.view.Menu;
-import android.widget.Button;
-import android.widget.TextView;
 
-import com.example.externalstoragefileoperations.MainActivity;
-import com.example.externalstoragefileoperations.adapters.CustomAdapter;
 import com.example.externalstoragefileoperations.model.FileModel;
 import com.example.externalstoragefileoperations.model.FileOperationModel;
 
@@ -29,100 +19,22 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-public class FileOperationsAsyncTask extends AsyncTask<Integer, Integer, Void> {
+public class FileOperationsAsyncTask extends AsyncTaskLoader<FileOperationModel> {
 
-    Context context;
-    Menu menu;
-    Button button_stop, button_start;
-    ProgressDialog progressDialog;
-    private TextView averageFileSizeTextView, averageFileSizeHeaderTextView;
-    private RecyclerView recyclerView, recyclerView2;
     FileOperationModel fileOperationModel;
-
-    private TaskCompleted mCallback;
-
-    private int NOTIFICATION_ID = 1;
-    private Notification mNotification;
-    private NotificationManager mNotificationManager;
-
-    CustomAdapter customAdapter, customAdapter1;
     long size;
     String name;
     String extension = null;
     int index;
-
     LinkedList<FileModel> linkedList;
 
     Map<String, Integer> map_words = new HashMap<>();
 
-    public FileOperationsAsyncTask(Context context, RecyclerView recyclerView, RecyclerView recyclerView2, TextView averageFileSizeHeaderTextView, TextView averageFileSizeTextView, Button button_stop, Button button_start, Menu menu) {
-        this.context = context;
-        this.recyclerView = recyclerView;
-        this.recyclerView2 = recyclerView2;
-        this.averageFileSizeHeaderTextView = averageFileSizeHeaderTextView;
-        this.averageFileSizeTextView = averageFileSizeTextView;
-        this.button_stop = button_stop;
-        this.button_start = button_start;
-        this.menu = menu;
-        mNotificationManager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
-        this.mCallback= (TaskCompleted) context;
-    }
-
-    @Override
-    protected Void doInBackground(Integer... params) {
-        startScanningExternalStorage();
-        publishProgress(params);
-        return null;
-    }
-
-    @Override
-    protected void onPreExecute() {
-        super.onPreExecute();
-        progressDialog = new ProgressDialog(context);
-        progressDialog.setTitle("Fetching data from External Storage");
-        progressDialog.setMax(10);
-        progressDialog.setProgress(0);
-        progressDialog.setProgressStyle(ProgressDialog.STYLE_HORIZONTAL);
-        progressDialog.setCancelable(true);
-        progressDialog.show();
-        createNotification("Scanning external storage", "Scanning external storage is in progress");
-        LinearLayoutManager linearLayoutManager = new LinearLayoutManager(context, LinearLayoutManager.VERTICAL, false);
-        recyclerView.setLayoutManager(linearLayoutManager);
-        LinearLayoutManager linearLayoutManager1 = new LinearLayoutManager(context, LinearLayoutManager.VERTICAL, false);
-        recyclerView2.setLayoutManager(linearLayoutManager1);
-    }
-
-    @Override
-    protected void onCancelled() {
-        super.onCancelled();
-        createNotification("Scanning external storage stopped", "Scanning external storage stopped");
-    }
-
-    @Override
-    protected void onPostExecute(Void v) {
-        if (progressDialog.isShowing() || progressDialog != null) {
-            progressDialog.dismiss();
-        }
-        customAdapter = new CustomAdapter((MainActivity) context, fileOperationModel.getFileNames(), fileOperationModel.getFileSize());
-        customAdapter1 = new CustomAdapter((MainActivity) context, fileOperationModel.getFrequentFileExtension(), fileOperationModel.getFrequentFileExtensionCount());
-        recyclerView.setAdapter(customAdapter);
-        recyclerView2.setAdapter(customAdapter1);
-        averageFileSizeHeaderTextView.setEnabled(true);
-        averageFileSizeTextView.setEnabled(true);
-        averageFileSizeTextView.setText(fileOperationModel.getAverage().toString());
-        createNotification("Scanning external storage", "Scanning external storage is complete!");
-        menu.getItem(0).setEnabled(true);
-        button_stop.setEnabled(false);
-        mCallback.onTaskComplete(fileOperationModel);
-    }
-
-    @Override
-    protected void onProgressUpdate(Integer... values) {
-
+    public FileOperationsAsyncTask(Context context) {
+        super(context);
     }
 
     private void listFiles(File[] files) {
-
         for (File f : files) {
             if (f.isFile()) {
                 name = f.getName();
@@ -207,6 +119,12 @@ public class FileOperationsAsyncTask extends AsyncTask<Integer, Integer, Void> {
         return fileOperationModel;
     }
 
+    @Override
+    public FileOperationModel loadInBackground() {
+        startScanningExternalStorage();
+        return fileOperationModel;
+    }
+
     class SortLinkedViasize implements Comparator<FileModel> {
         @Override
         public int compare(FileModel o1, FileModel o2) {
@@ -214,15 +132,22 @@ public class FileOperationsAsyncTask extends AsyncTask<Integer, Integer, Void> {
         }
     }
 
-    private void createNotification(String contentTitle, String contentText) {
-        Notification.Builder builder = new Notification.Builder(context)
-                .setSmallIcon(android.R.drawable.sym_def_app_icon)
-                .setAutoCancel(true)
-                .setContentTitle(contentTitle)
-                .setContentText(contentText);
+    @Override
+    protected void onStartLoading() {
 
-        mNotification = builder.getNotification();
-        mNotificationManager.notify(NOTIFICATION_ID, mNotification);
+        super.onStartLoading();
+
+        if (fileOperationModel != null) {
+            deliverResult(fileOperationModel);
+        }
+
+        if (fileOperationModel == null || takeContentChanged()) {
+            forceLoad();
+        }
     }
 
+    @Override
+    public void deliverResult(FileOperationModel data) {
+        super.deliverResult(data);
+    }
 }

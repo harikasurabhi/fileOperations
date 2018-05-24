@@ -1,29 +1,34 @@
 package com.example.externalstoragefileoperations;
 
 import android.Manifest;
+import android.app.LoaderManager;
+import android.app.Notification;
+import android.app.NotificationManager;
 import android.app.ProgressDialog;
-import android.content.Intent;
+import android.content.Context;
+import android.content.Loader;
 import android.content.pm.PackageManager;
+import android.os.Build;
 import android.os.Environment;
 import android.support.annotation.NonNull;
+import android.support.annotation.RequiresApi;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
 import android.view.Menu;
-import android.view.MenuItem;
 import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import com.example.externalstoragefileoperations.asyncTask.TaskCompleted;
+import com.example.externalstoragefileoperations.adapters.CustomAdapter;
 import com.example.externalstoragefileoperations.model.FileOperationModel;
 import com.example.externalstoragefileoperations.asyncTask.FileOperationsAsyncTask;
 
-public class MainActivity extends AppCompatActivity implements View.OnClickListener, TaskCompleted {
-
+public class MainActivity extends AppCompatActivity implements View.OnClickListener, LoaderManager.LoaderCallbacks<FileOperationModel> {
 
     private Menu menu;
     private Button button_start, button_stop, shareMenu;
@@ -31,9 +36,11 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     private TextView averageFileSizeTextView, averageFileSizeHeaderTextView;
     private RecyclerView recyclerView, recyclerView2;
     private static final int MY_PERMISSION = 1;
-    FileOperationsAsyncTask fileOperations;
-    FileOperationModel fileOperationModel = new FileOperationModel();
-
+    LoaderManager mLoaderManager;
+    CustomAdapter customAdapter, customAdapter1;
+    private Notification mNotification;
+    private NotificationManager mNotificationManager;
+    private int NOTIFICATION_ID = 1;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -54,33 +61,15 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         if (!isExternalStorageAvailable() || isExternalStorageReadOnly()) {
             button_start.setEnabled(false);
             button_stop.setEnabled(false);
-        }else {
+        } else {
             button_start.setOnClickListener(this);
             button_stop.setOnClickListener(this);
         }
-    }
 
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        this.menu = menu;
-        getMenuInflater().inflate(R.menu.main, menu);
-        menu.getItem(0).setEnabled(false);
-
-        return true;
-    }
-
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        switch (item.getItemId()) {
-            case R.id.mShare:
-                Intent ShareIntent = new Intent(Intent.ACTION_SEND);
-                ShareIntent.setType("text/plain");
-                ShareIntent.putExtra(Intent.EXTRA_SUBJECT, "Name and sizes of 10 biggest files");
-                ShareIntent.putExtra(Intent.EXTRA_TEXT, String.valueOf(onTaskComplete(fileOperationModel).getFileNames())+  String.valueOf(onTaskComplete(fileOperationModel).getFileSize())+ String.valueOf(onTaskComplete(fileOperationModel).getFileExtensionName())+ String.valueOf(onTaskComplete(fileOperationModel).getFrequentFileExtensionCount())+ String.valueOf(onTaskComplete(fileOperationModel).getAverage()));
-                startActivity(Intent.createChooser(ShareIntent, "Share using"));
-                break;
+        mLoaderManager = getLoaderManager();
+        if (mLoaderManager.getLoader(0) != null) {
+            getLoaderManager().initLoader(0, null, this);
         }
-        return super.onOptionsItemSelected(item);
     }
 
     @Override
@@ -90,15 +79,21 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                     if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED) {
                         Toast.makeText(MainActivity.this, "Permission granted", Toast.LENGTH_SHORT).show();
-                            button_stop.setEnabled(true);
-                            fileOperations = new FileOperationsAsyncTask(MainActivity.this, recyclerView, recyclerView2, averageFileSizeHeaderTextView, averageFileSizeTextView, button_stop, button_start, menu);
-                            fileOperations.execute();
+                        button_stop.setEnabled(true);
+                        progressDialog = new ProgressDialog(this);
+                        progressDialog.setTitle("Fetching data from External Storage");
+                        progressDialog.setMax(10);
+                        progressDialog.setProgress(0);
+                        progressDialog.setProgressStyle(ProgressDialog.STYLE_HORIZONTAL);
+                        progressDialog.setCancelable(true);
+                        progressDialog.show();
+                        createNotification("Scanning external storage", "Scanning external storage is in progress");
+                        mLoaderManager.initLoader(0, null, this);
                     }
                 } else {
                     Toast.makeText(MainActivity.this, "Permission denied by User", Toast.LENGTH_SHORT).show();
                     finish();
                 }
-                return;
             }
         }
     }
@@ -119,26 +114,30 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         return false;
     }
 
+    @RequiresApi(api = Build.VERSION_CODES.JELLY_BEAN)
     @Override
     public void onClick(View v) {
-
         switch (v.getId()) {
             case R.id.fileoperations_start:
                 if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED) {
                     button_stop.setEnabled(true);
-                    fileOperations = new FileOperationsAsyncTask(MainActivity.this, recyclerView, recyclerView2, averageFileSizeHeaderTextView, averageFileSizeTextView, button_stop, button_start, menu);
-                    fileOperations.execute();
-                }else {
+                    progressDialog = new ProgressDialog(this);
+                    progressDialog.setTitle("Fetching data from External Storage");
+                    progressDialog.setMax(10);
+                    progressDialog.setProgress(0);
+                    progressDialog.setProgressStyle(ProgressDialog.STYLE_HORIZONTAL);
+                    progressDialog.setCancelable(true);
+                    progressDialog.show();
+                    createNotification("Scanning external storage", "Scanning external storage is in progress");
+                    mLoaderManager.initLoader(0, null, this);
+                } else {
                     ActivityCompat.requestPermissions(MainActivity.this, new String[]{Manifest.permission.READ_EXTERNAL_STORAGE}, MY_PERMISSION);
                 }
                 break;
 
             case R.id.fileoperations_stop:
-                if (fileOperations.isCancelled())
-                    break;
-                else {
-                    fileOperations.cancel(true);
-                }
+                mLoaderManager.destroyLoader(0);
+                createNotification("Scanning external storage", "Scanning external storage is Cancelled!");
                 button_stop.setEnabled(false);
                 break;
         }
@@ -150,15 +149,49 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         if (progressDialog != null && progressDialog.isShowing()) {
             progressDialog.dismiss();
         }
-        if (fileOperations != null) {
-            fileOperations.cancel(true);
-        }
-
+        mLoaderManager.destroyLoader(0);
+        createNotification("Scanning external storage", "Scanning external storage is Cancelled!");
     }
 
     @Override
-    public FileOperationModel onTaskComplete(FileOperationModel fileOperationModel) {
-        this.fileOperationModel= fileOperationModel;
-        return fileOperationModel;
+    public Loader<FileOperationModel> onCreateLoader(int id, Bundle args) {
+        return new FileOperationsAsyncTask(this);
+    }
+
+    @Override
+    public void onLoadFinished(Loader<FileOperationModel> loader, FileOperationModel fileOperationModel) {
+        if (progressDialog != null && progressDialog.isShowing()) {
+            progressDialog.dismiss();
+        }
+        LinearLayoutManager linearLayoutManager = new LinearLayoutManager(this, LinearLayoutManager.VERTICAL, false);
+        recyclerView.setLayoutManager(linearLayoutManager);
+        LinearLayoutManager linearLayoutManager1 = new LinearLayoutManager(this, LinearLayoutManager.VERTICAL, false);
+        recyclerView2.setLayoutManager(linearLayoutManager1);
+        customAdapter = new CustomAdapter(this, fileOperationModel.getFileNames(), fileOperationModel.getFileSize());
+        customAdapter1 = new CustomAdapter(this, fileOperationModel.getFrequentFileExtension(), fileOperationModel.getFrequentFileExtensionCount());
+        recyclerView.setAdapter(customAdapter);
+        recyclerView2.setAdapter(customAdapter1);
+        averageFileSizeHeaderTextView.setEnabled(true);
+        averageFileSizeTextView.setEnabled(true);
+        averageFileSizeTextView.setText(fileOperationModel.getAverage().toString());
+        createNotification("Scanning external storage", "Scanning external storage is complete!");
+//        menu.getItem(0).setEnabled(true);
+        button_stop.setEnabled(false);
+    }
+
+    @Override
+    public void onLoaderReset(Loader<FileOperationModel> loader) {
+    }
+
+    private void createNotification(String contentTitle, String contentText) {
+        Notification.Builder builder = new Notification.Builder(this)
+                .setSmallIcon(android.R.drawable.sym_def_app_icon)
+                .setAutoCancel(true)
+                .setContentTitle(contentTitle)
+                .setContentText(contentText);
+
+        mNotification = builder.getNotification();
+        mNotificationManager = (NotificationManager) this.getSystemService(Context.NOTIFICATION_SERVICE);
+        mNotificationManager.notify(NOTIFICATION_ID, mNotification);
     }
 }
