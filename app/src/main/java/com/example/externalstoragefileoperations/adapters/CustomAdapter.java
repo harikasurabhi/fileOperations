@@ -49,6 +49,14 @@ public class CustomAdapter extends RecyclerView.Adapter<CustomAdapter.DataHolder
         return fileName.size();
     }
 
+    public List getFileName(){
+        return fileName;
+    }
+
+    public List getFileSize(){
+        return fileSize;
+    }
+
     public class DataHolder extends RecyclerView.ViewHolder {
 
         TextView fileName, fileSize;
